@@ -6,7 +6,7 @@ ECCV 2020
 
 http://visual.cs.brown.edu/matryodshka
 
-![teaser_small.png]
+![High-level overview of approach.](teaser_small.png)
 
 ## Code release coming soon!
 Please watch and star this repo to be notified : )
