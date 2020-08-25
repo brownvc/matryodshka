@@ -6,7 +6,7 @@ ECCV 2020
 
 http://visual.cs.brown.edu/matryodshka
 
-![https://visual.cs.brown.edu/projects/matryodshkawebpage/teaser_small.png]
+![teaser_small.png]
 
 ## Code release coming soon!
 Please watch and star this repo to be notified : )
