@@ -4,9 +4,9 @@
 
 ECCV 2020
 
-## visual.cs.brown.edu/matryodshka
+http://visual.cs.brown.edu/matryodshka
 
-
+![http://visual.cs.brown.edu/projects/matryodshkawebpage/teaser_small.png]
 
 ## Code release coming soon!
 Please watch and star this repo to be notified : )
