@@ -9,4 +9,4 @@ http://visual.cs.brown.edu/matryodshka
 ![High-level overview of approach.](teaser_small.png)
 
 ## Code release coming soon!
-Please watch and star this repo to be notified : )
+Please watch and star this repo to be notified. : )
