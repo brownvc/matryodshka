@@ -10,7 +10,19 @@ ECCV 2020
 
 See more at our [project page](http://visual.cs.brown.edu/matryodshka).
 
-Note that our codes are based on the [code release](https://github.com/google/stereo-magnification/tree/aae16f7464d8a001b59c3bef6076ae8cb7bd043d) from the paper Stereo Maginification: Learning view synthesis using multiplane images [[1]](#1).  
+If you use these codes, please cite:
+
+    @inproceedings{Attal:2020:ECCV,
+        author    = "Benjamin Attal and Selena Ling and Aaron Gokaslan and Christian Richardt and James Tompkin",
+        title     = "{MatryODShka}: Real-time {6DoF} Video View Synthesis using Multi-Sphere Images",
+        booktitle = "European Conference on Computer Vision (ECCV)",
+        month     = aug,
+        year      = "2020",
+        url       = "https://visual.cs.brown.edu/matryodshka"
+    }
+
+Note that our codes are based on the [code](https://github.com/google/stereo-magnification/tree/aae16f7464d8a001b59c3bef6076ae8cb7bd043d) from the paper "Stereo Maginification: Learning View Synthesis using Multiplane Images" by Zhou et al. [[1]](#1), and on the [code](https://github.com/nywang16/Pixel2Mesh) from the paper "Pixel2mesh: Generating 3D Mesh Models from Single RGB Images." by Wang et al. [[3]](#3). Please also cite their work.
+
 
 ## Setup
 * Create a conda environment from the matryodshka-gpu.yml file.
