@@ -66,7 +66,7 @@ This data can be found [here at the Brown library](https://doi.org/10.26300/spba
 We also have a [fork of the Replica dataset codebase](http://coming.soon/) which can regenerate our data from scratch.
 This contains customized rendering scripts that allow output of ODS, equirectangular, and cubemap projection spherical imagery, along with corresponding depth maps.
 
-Note that the 360 dataset we release for download was rendered with an incorrect 90-degree camera rotation around the up vector and a horizontal flip. Regenerating the dataset from our released code fork with the customized rendering scripts will not include this coordinate change. The output model performance should be approximately the same._
+Note that the 360 dataset we release for download was rendered with an incorrect 90-degree camera rotation around the up vector and a horizontal flip. Regenerating the dataset from our released code fork with the customized rendering scripts will not include this coordinate change. The output model performance should be approximately the same.
 
 ## Exporting the model to ONNX
 We export our model to ONNX by firstly converting the checkpoint into a pb file, which then gets converted to an onnx file with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) module. 
