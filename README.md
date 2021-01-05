@@ -63,6 +63,11 @@ This data can be found [here at the Brown library](https://doi.org/10.26300/spba
 * test_640x320
 * test_video_640x320
 
+You can also find the camera pose information [here](https://www.dropbox.com/s/a5uu8b3lh1mrbgv/replica-6dof.zip?dl=0) that were used to render the training dataset. 
+Each line of the txt fileach line of the txt file is formatted as below:
+
+camera_position_x camera_position_y camera_position_z ods_baseline target1_offset_x target1_offset_y target1_offset_z target2_offset_x target2_offset_y target2_offset_z target3_offset_x target3_offset_y target3_offset_z
+
 We also have a [fork of the Replica dataset codebase](http://coming.soon/) which can regenerate our data from scratch.
 This contains customized rendering scripts that allow output of ODS, equirectangular, and cubemap projection spherical imagery, along with corresponding depth maps.
 
