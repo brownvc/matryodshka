@@ -285,6 +285,15 @@ def to_placeholder(tensor, name=None):
         name = 'inp_' + tensor.op.name
     return tf.placeholder(tensor.dtype, tensor.shape, name=name)
 
+def wrap_pad(inputs, left_pad, right_pad):
+    left = inputs[:,:,-left_pad:,:]
+    left = tf.reshape(left, [tf.shape(inputs)[0], tf.shape(inputs)[1], left_pad, tf.shape(inputs)[3]])
+    right = inputs[:,:,:right_pad,:]
+    right = tf.reshape(right, [tf.shape(inputs)[0], tf.shape(inputs)[1], right_pad, tf.shape(inputs)[3]])
+    padded_inputs = tf.concat([left, inputs, right], axis=-2)
+    padded_inputs = tf.pad(padded_inputs, [[0,0],[left_pad,right_pad],[0,0],[0,0]], mode="CONSTANT")
+    return padded_inputs
+
 def msi_inference_net(inputs, num_outputs, ngf=64, vscope='net', reuse_weights=False):
   """Network definition for multiplane image (msi) inference.
 
@@ -391,43 +400,46 @@ def msi_train_net(inputs, num_outputs, ngf=64, vscope='net', reuse_weights=False
     with slim.arg_scope(
         [slim.conv2d, slim.conv2d_transpose], normalizer_fn=slim.layer_norm):
 
-      cnv1_1 = slim.conv2d(inputs, ngf, [3, 3], scope='conv1_1', stride=1)
+      cnv1_1 = slim.conv2d(wrap_pad(inputs, 1, 1), ngf, [3, 3], scope='conv1_1', stride=1, padding="VALID")
 
-      cnv1_2 = slim.conv2d(cnv1_1, ngf * 2, [3, 3], scope='conv1_2', stride=2)
+      cnv1_2 = slim.conv2d(wrap_pad(cnv1_1, 1, 1), ngf * 2, [3, 3], scope='conv1_2', stride=2, padding="VALID")
 
-      cnv2_1 = slim.conv2d(cnv1_2, ngf * 2, [3, 3], scope='conv2_1', stride=1)
+      cnv2_1 = slim.conv2d(wrap_pad(cnv1_2, 1, 1), ngf * 2, [3, 3], scope='conv2_1', stride=1, padding="VALID")
 
-      cnv2_2 = slim.conv2d(cnv2_1, ngf * 4, [3, 3], scope='conv2_2', stride=2)
+      cnv2_2 = slim.conv2d(wrap_pad(cnv2_1, 1, 1), ngf * 4, [3, 3], scope='conv2_2', stride=2, padding="VALID")
 
-      cnv3_1 = slim.conv2d(cnv2_2, ngf * 4, [3, 3], scope='conv3_1', stride=1)
+      cnv3_1 = slim.conv2d(wrap_pad(cnv2_2, 1, 1), ngf * 4, [3, 3], scope='conv3_1', stride=1, padding="VALID")
 
-      cnv3_2 = slim.conv2d(cnv3_1, ngf * 4, [3, 3], scope='conv3_2', stride=1)
+      cnv3_2 = slim.conv2d(wrap_pad(cnv3_1, 1, 1), ngf * 4, [3, 3], scope='conv3_2', stride=1, padding="VALID")
 
-      cnv3_3 = slim.conv2d(cnv3_2, ngf * 8, [3, 3], scope='conv3_3', stride=2)
+      cnv3_3 = slim.conv2d(wrap_pad(cnv3_2, 1, 1), ngf * 8, [3, 3], scope='conv3_3', stride=2, padding="VALID")
 
       cnv4_1 = slim.conv2d(
-          cnv3_3, ngf * 8, [3, 3], scope='conv4_1', stride=1, rate=2)
+         wrap_pad(cnv3_3, 2, 2), ngf * 8, [3, 3], scope='conv4_1', stride=1, rate=2, padding="VALID")
       cnv4_2 = slim.conv2d(
-          cnv4_1, ngf * 8, [3, 3], scope='conv4_2', stride=1, rate=2)
+          wrap_pad(cnv4_1, 2, 2), ngf * 8, [3, 3], scope='conv4_2', stride=1, rate=2, padding="VALID")
       cnv4_3 = slim.conv2d(
-          cnv4_2, ngf * 8, [3, 3], scope='conv4_3', stride=1, rate=2)
+          wrap_pad(cnv4_2, 2, 2), ngf * 8, [3, 3], scope='conv4_3', stride=1, rate=2, padding="VALID")
 
       # Adding skips
       skip = tf.concat([cnv4_3, cnv3_3], axis=3)
       cnv6_1 = slim.conv2d_transpose(
-          skip, ngf * 4, [4, 4], scope='conv6_1', stride=2)
-      cnv6_2 = slim.conv2d(cnv6_1, ngf * 4, [3, 3], scope='conv6_2', stride=1)
-      cnv6_3 = slim.conv2d(cnv6_2, ngf * 4, [3, 3], scope='conv6_3', stride=1)
+          wrap_pad(skip, 2, 2), ngf * 4, [4, 4], scope='conv6_1', stride=2, padding="VALID")
+      # cnv6_1 = conv2d_transpose(skip, ngf * 4, [4,4], scope='conv6_1', stride=2, padding="VALID")
+      cnv6_2 = slim.conv2d(wrap_pad(cnv6_1[:,5:-5,5:-5,:], 1, 1), ngf * 4, [3, 3], scope='conv6_2', stride=1, padding="VALID")
+      cnv6_3 = slim.conv2d(wrap_pad(cnv6_2, 1, 1), ngf * 4, [3, 3], scope='conv6_3', stride=1, padding="VALID")
 
       skip = tf.concat([cnv6_3, cnv2_2], axis=3)
       cnv7_1 = slim.conv2d_transpose(
-          skip, ngf * 2, [4, 4], scope='conv7_1', stride=2)
-      cnv7_2 = slim.conv2d(cnv7_1, ngf * 2, [3, 3], scope='conv7_2', stride=1)
+          wrap_pad(skip, 2, 2), ngf * 2, [4, 4], scope='conv7_1', stride=2, padding="VALID")
+      # cnv7_1 = conv2d_transpose(skip, ngf * 2, [4,4], scope='conv7_1', stride=2, padding="VALID")
+      cnv7_2 = slim.conv2d(wrap_pad(cnv7_1[:,5:-5,5:-5,:], 1, 1), ngf * 2, [3, 3], scope='conv7_2', stride=1, padding="VALID")
 
       skip = tf.concat([cnv7_2, cnv1_2], axis=3)
       cnv8_1 = slim.conv2d_transpose(
-          skip, ngf, [4, 4], scope='conv8_1', stride=2)
-      cnv8_2 = slim.conv2d(cnv8_1, ngf, [3, 3], scope='conv8_2', stride=1)
+          wrap_pad(skip, 2, 2), ngf, [4, 4], scope='conv8_1', stride=2, padding="VALID")
+      # cnv8_1 = conv2d_transpose(skip, ngf, [4,4], scope='conv8_1', stride=2, padding="VALID")
+      cnv8_2 = slim.conv2d(wrap_pad(cnv8_1[:,5:-5,5:-5,:], 1, 1), ngf, [3, 3], scope='conv8_2', stride=1, padding="VALID")
       feat = cnv8_2
       pred = slim.conv2d(
           feat,

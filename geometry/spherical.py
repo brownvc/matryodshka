@@ -208,6 +208,14 @@ def project_ods(points, order, pose, intrinsics, width, height):
     theta = -tf.atan2(dz, dx)
     phi = tf.atan2(dy, tf.sqrt(tf.square(dx) + tf.square(dz)))
 
+    pos_phi = tf.ones_like(dx) * np.pi/2
+    neg_phi = tf.ones_like(dx) * np.pi/2 * -1.
+
+    pos_phi_mask = tf.less_equal(np.pi/2, phi)
+    neg_phi_mask = tf.greater_equal(-np.pi/2, phi)
+    phi = tf.where(pos_phi_mask, phi, pos_phi)
+    phi = tf.where(neg_phi_mask, phi, neg_phi)
+
     # Get pixel coords
     u = ((theta + np.pi - np.pi / width) / (2 * np.pi - 2 * np.pi / width)) * (width - 1)
     v = ((phi + 0.5 * np.pi - 0.5 * np.pi / height) / (np.pi - np.pi / height)) * (height - 1)
@@ -215,8 +223,8 @@ def project_ods(points, order, pose, intrinsics, width, height):
     # Keep valid parts
     valid_mask = tf.greater_equal(disc, 0.)
     ones = tf.ones_like(u)
-    u = tf.where(valid_mask, u, ones * -1.)
-    v = tf.where(valid_mask, v, ones * -1.)
+    u = tf.where(valid_mask, u, ones)
+    v = tf.where(valid_mask, v, ones)
 
     # Return
     uv = tf.stack([u, v], axis=-1)
