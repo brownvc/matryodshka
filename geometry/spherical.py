@@ -207,12 +207,14 @@ def project_ods(points, order, pose, intrinsics, width, height):
     # Angles from direction vector
     theta = -tf.atan2(dz, dx)
     phi = tf.atan2(dy, tf.sqrt(tf.square(dx) + tf.square(dz)))
+    nan_mask = tf.is_nan(phi)
+    phi = tf.where(nan_mask, tf.ones_like(phi), phi)
 
     pos_phi = tf.ones_like(dx) * np.pi/2
     neg_phi = tf.ones_like(dx) * np.pi/2 * -1.
 
-    pos_phi_mask = tf.less_equal(np.pi/2, phi)
-    neg_phi_mask = tf.greater_equal(-np.pi/2, phi)
+    pos_phi_mask = tf.less_equal(phi, np.pi/2)
+    neg_phi_mask = tf.greater_equal(phi, -np.pi/2)
     phi = tf.where(pos_phi_mask, phi, pos_phi)
     phi = tf.where(neg_phi_mask, phi, neg_phi)
 
