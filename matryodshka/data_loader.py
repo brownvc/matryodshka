@@ -142,19 +142,12 @@ class ReplicaSequenceDataLoader(object):
           scene_id = sequence.scene_id
           image_id = sequence.image_id
 
-          # some required arguments from perspective training -> for equriect, we just feed in identity matrix values
-          pose_one = [[1.0, 0.0, 0.0, 0.0],
-                      [0.0, 1.0, 0.0, 0.0],
-                      [0.0, 0.0, 1.0, 0.0],
-                      [0.0, 0.0, 0.0, 1.0]]
-          pose_two = [[1.0, 0.0, 0.0, 0.0],
-                      [0.0, 1.0, 0.0, 0.0],
-                      [0.0, 0.0, 1.0, 0.0],
-                      [0.0, 0.0, 0.0, 1.0]]
-          pose_one = tf.expand_dims(pose_one, 0)
+          # Pose is inverse of view matrix stored in ODS sequence
+          pose_temp = sequence.pose_inv[0]
+          pose = tf.linalg.inv(pose_temp)
+          pose_one = tf.expand_dims(pose, 0)
           pose_one = tf.tile(pose_one,[self.batch_size,1,1])
-          pose_two = tf.expand_dims(pose_two, 0)
-          pose_two = tf.tile(pose_two,[self.batch_size,1,1])
+          pose_two = pose_one
 
           # camera intrinsic matrix for perspective -> for equirect stores the baseline of stereo ods images
           intrinsics = [[sequence.baseline[0], 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]

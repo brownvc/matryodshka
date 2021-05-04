@@ -42,6 +42,7 @@ flags.DEFINE_string('checkpoint_dir', 'checkpoints',
                     'Location to save the models.')
 flags.DEFINE_string('experiment_name', '', 'Name for the experiment to run.')
 flags.DEFINE_integer('shuffle_seq_length', 3, 'Number of images for each input group.')
+flags.DEFINE_integer('num_synth', 2, 'Number of additional frames for synthesis.')
 
 # training hyper-parameters
 flags.DEFINE_float('learning_rate', 0.0002, 'Learning rate')
@@ -132,10 +133,10 @@ def main(_):
                                                 dense_shape=np.asarray(support[i][2], dtype=np.float32)) for i in range(len(support))]
 
   model = MSI()
-  train_op = model.build_train_graph(train_batch, FLAGS.min_depth, FLAGS.max_depth, FLAGS.num_psv_planes,
+  train_op, rgba_layers, orig_pose, raw_tgt_image, first_tgt_pose = model.build_train_graph(train_batch, FLAGS.min_depth, FLAGS.max_depth, FLAGS.num_psv_planes,
                                      FLAGS.num_msi_planes, FLAGS.which_color_pred, FLAGS.which_loss,
                                      FLAGS.learning_rate, FLAGS.beta1)
-  model.train(train_op, FLAGS.checkpoint_dir, FLAGS.continue_train,
+  model.train(train_op, rgba_layers, orig_pose, raw_tgt_image, first_tgt_pose, FLAGS.checkpoint_dir, FLAGS.continue_train,
               FLAGS.summary_freq, FLAGS.save_latest_freq, FLAGS.max_steps)
 
 if __name__ == '__main__':

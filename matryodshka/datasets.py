@@ -27,7 +27,7 @@ FLAGS = flags.FLAGS
 
 class OdsSequence(
     collections.namedtuple('OdsSequence',
-                           ['scene_id', 'image_id', 'baseline', 'tgt_pos', 'image', 'hres_image'])):
+                           ['scene_id', 'image_id', 'baseline', 'tgt_pos', 'image', 'hres_image', 'pose_inv'])):
   """
     Attributes:
       scene_id: [] string id for identifying scene and positions.
@@ -412,17 +412,26 @@ def load_image_data(base_path, height, width, parallel_image_reads):
 
 def parse_replica_ods_camera_lines(lines):
     num_img = FLAGS.shuffle_seq_length
-    record_defaults=([['']] + [['']]*num_img + [[0.0]]*4)
+    record_defaults=([['']] + [['']]*num_img + [[0.0]]*20)
     data = tf.decode_csv(lines, record_defaults, field_delim=' ')
     scene_id = data[0]
     img_id = data[1:1+num_img]
     baseline = data[1+num_img]
-    tgt_pos = data[2+num_img:]
+    tgt_pos = data[2+num_img:2+num_img+3]
+    pose_inv = data[2+num_img+3:24]
+    temp = pose_inv[4:8]
+
+    for i in range(len(temp)):
+      temp[i] *= -1
+    pose_inv[4:8] = pose_inv[8:12]
+    pose_inv[8:12] = temp[:]
+    pose_inv = tf.reshape(pose_inv, [4, 4])
+    pose_inv = tf.expand_dims(pose_inv, axis=0)
 
     images = tf.zeros_like(img_id, dtype=tf.float32)
     hres_images = tf.zeros_like(img_id, dtype=tf.float32)
 
-    return OdsSequence(scene_id, img_id, baseline, tgt_pos, images, hres_images)
+    return OdsSequence(scene_id, img_id, baseline, tgt_pos, images, hres_images, pose_inv)
 
 def parse_replica_perspective_camera_lines(lines):
     record_defaults=([['']] + [['']]*3 + [[0.0]]*2)
@@ -546,7 +555,7 @@ def load_replica_ods_image_data(base_path, hres_base_path, height, width, hres_h
             tf.data.Dataset.from_tensor_slices(sequence.scene_id + '_pos' + sequence.image_id + '.jpeg')
             .map(load_single_highres_image, num_parallel_calls=parallel_image_reads).batch(
                 tf.to_int64(sequence.length())))
-    return OdsSequence(sequence.scene_id, sequence.image_id, sequence.baseline, sequence.tgt_pos, images, hres_images)
+    return OdsSequence(sequence.scene_id, sequence.image_id, sequence.baseline, sequence.tgt_pos, images, hres_images, sequence.pose_inv)
 
   return mapper
 

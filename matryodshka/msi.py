@@ -38,12 +38,14 @@ class MSI(object):
     pass
 
   def infer_msi(self,
+                prev_msi,
                 raw_src_image,
                 raw_ref_image,
                 raw_hres_src_image,
                 raw_hres_ref_image,
                 ref_pose,
                 src_pose,
+                tgt_pose,
                 intrinsics,
                 which_color_pred,
                 num_msi_planes,
@@ -78,14 +80,18 @@ class MSI(object):
             hres_ref_image = self.preprocess_image(raw_hres_ref_image)
 
     with tf.name_scope('format_network_input'):
+
+        reshaped_msi = tf.reshape(prev_msi, [1, 320, 640, 32*4])
+
         if FLAGS.input_type == 'REALESTATE_PP':
             net_input = self.format_realestate_network_input(ref_image, src_image, 
                                                              ref_pose, src_pose,
                                                              psv_planes, intrinsics)
         else:
-            net_input = self.format_network_input(ref_image, src_image,
+            net_input = self.format_network_input_synth(ref_image, src_image, tgt_pose,
                                                   ref_pose, src_pose,
                                                   psv_planes, intrinsics)
+            net_input = tf.concat([net_input, reshaped_msi], axis=-1)
         if 'hrestgt' in FLAGS.supervision:
             hres_net_input = self.format_network_input(hres_ref_image, hres_src_image,
                                                        ref_pose, src_pose,
@@ -123,7 +129,8 @@ class MSI(object):
           else:
               msi_pred = msi_net(net_input, num_msi_planes * 2, ngf=FLAGS.ngf, reuse_weights=True)
         else:
-            msi_pred = msi_net(net_input, num_msi_planes * 2, ngf=FLAGS.ngf)
+            # adding (num_msi_planes) to num_outputs for predicted blending weights
+            msi_pred = msi_net(net_input, num_msi_planes * 3, ngf=FLAGS.ngf, reuse_weights=tf.AUTO_REUSE)
         if FLAGS.net_only:
           #for model export
           return None
@@ -131,14 +138,30 @@ class MSI(object):
             # Rescale blend_weights/alpha to (0, 1)
             blend_weights = (msi_pred[:, :, :, :num_msi_planes] + 1.) / 2.
             alphas = (msi_pred[:, :, :, num_msi_planes:num_msi_planes * 2] + 1.) / 2.
+            msi_blend_weights = (msi_pred[:, :, :, num_msi_planes * 2:num_msi_planes * 3] + 1.) / 2.
 
             # Assemble into an msi (rgba_layers)
             for i in range(num_msi_planes):
+                # rgb from inputs (foreground and background)
                 fg_rgb = net_input[:, :, :, i * 3:(1 + i) * 3]
                 bg_rgb = net_input[:, :, :, (num_msi_planes + i) * 3:(num_msi_planes + 1 + i) * 3]
-                curr_alpha = tf.expand_dims(alphas[:, :, :, i], -1)
+                
+                # rgb from current msi
+                msi_rgb = prev_msi[:, :, :, i, :3]
+                msi_a = prev_msi[:, :, :, i, 3:]
+
+                # blend psv inputs
                 w = tf.expand_dims(blend_weights[:, :, :, i], -1)
-                curr_rgb = w * fg_rgb + (1 - w) * bg_rgb
+                rgb_psv = w * fg_rgb + (1 - w) * bg_rgb
+
+                # blend with current msi
+                w_msi = tf.expand_dims(msi_blend_weights[:, :, :, i], -1)
+                curr_rgb = w_msi * msi_rgb + (1 - w_msi) * rgb_psv
+
+                # update alpha
+                curr_alpha = tf.expand_dims(alphas[:, :, :, i], -1)
+                curr_alpha = curr_alpha * (1/(FLAGS.num_synth+1)) + (1 - 1/(FLAGS.num_synth+1))*msi_a
+
                 curr_rgba = tf.concat([curr_rgb, curr_alpha], axis=3)
                 if i == 0:
                     rgba_layers = curr_rgba
@@ -170,7 +193,7 @@ class MSI(object):
             else:
                 msi_pred = msi_net(net_input, 3 + num_msi_planes * 2, ngf=FLAGS.ngf, reuse_weights=True)
         else:
-            msi_pred = msi_net(net_input, 3 + num_msi_planes * 2, ngf=FLAGS.ngf)
+            msi_pred = msi_net(net_input, 3 + num_msi_planes * 2, ngf=FLAGS.ngf, reuse_weights=tf.AUTO_REUSE)
         if FLAGS.net_only:
             return None
         with tf.name_scope('layer_prediction'):
@@ -217,7 +240,7 @@ class MSI(object):
             else:
                 msi_pred = msi_net(net_input, 3 + num_msi_planes * 3, ngf=FLAGS.ngf, reuse_weights=True)
         else:
-            msi_pred = msi_net(net_input, 3 + num_msi_planes * 3, ngf=FLAGS.ngf)
+            msi_pred = msi_net(net_input, 3 + num_msi_planes * 3, ngf=FLAGS.ngf, reuse_weights=tf.AUTO_REUSE)
         if FLAGS.net_only:
             return None
         with tf.name_scope('layer_prediction'):
@@ -254,7 +277,7 @@ class MSI(object):
             else:
                 msi_pred = msi_net(net_input, num_msi_planes, ngf=FLAGS.ngf, reuse_weights=True)
         else:
-            msi_pred = msi_net(net_input, num_msi_planes, ngf=FLAGS.ngf)
+            msi_pred = msi_net(net_input, num_msi_planes, ngf=FLAGS.ngf, reuse_weights=tf.AUTO_REUSE)
         if FLAGS.net_only:
             return None
         with tf.name_scope('layer_prediction'):
@@ -275,6 +298,7 @@ class MSI(object):
     # collect outputs to return
     pred = {}
     pred['rgba_layers'] = rgba_layers
+    pred['msi_blend_weights'] = msi_blend_weights
     if 'hrestgt' in FLAGS.supervision:
         pred['hres_rgba_layers'] = urgba_layers
     if 'blend_weights' in extra_outputs:
@@ -576,8 +600,13 @@ class MSI(object):
     with tf.name_scope('setup'):
       psv_planes = self.inv_depths(min_depth, max_depth, num_psv_planes)
       msi_planes = self.inv_depths(min_depth, max_depth, num_msi_planes)
+      prev_msi = tf.placeholder(tf.float32, shape=(1, 320, 640, num_msi_planes, 4), name='prev_msi')
+      view = tf.placeholder(tf.int32, name='view')
+      orig_pose = tf.placeholder(tf.float32, shape=(1, 4, 4), name='orig_pose')
+      first_tgt = tf.placeholder(tf.float32, shape=(1, 320, 640, 3), name='first_tgt')
+      first_tgt_pose = tf.placeholder(tf.float32, shape=(1, 3), name='first_tgt_pose')
     with tf.name_scope('input_data'):
-      raw_tgt_image = inputs['tgt_image']
+      raw_tgt_image = tf.cond(tf.math.equal(view, tf.constant(0)), lambda:inputs['tgt_image'], lambda:first_tgt)
       raw_ref_image = inputs['ref_image']
       raw_src_image = inputs['src_image']
       raw_hres_tgt_image = inputs['hres_tgt_image'] if 'hrestgt' in FLAGS.supervision else None
@@ -585,7 +614,9 @@ class MSI(object):
       raw_hres_src_image = inputs['hres_src_image'] if 'hrestgt' in FLAGS.supervision else None
 
       tgt_pose = inputs['tgt_pose']
+      first_tgt_pose = tf.cond(tf.math.equal(view, tf.constant(0)), lambda:inputs['tgt_pose'], lambda:first_tgt_pose)
       ref_pose = inputs['ref_pose']
+      orig_pose = tf.cond(tf.math.equal(view, tf.constant(0)), lambda:ref_pose, lambda:orig_pose)
       src_pose = inputs['src_pose']
       intrinsics = inputs['intrinsics']
       if FLAGS.gcn:
@@ -599,10 +630,11 @@ class MSI(object):
           pred, net_input = self.infer_gcn_msi(raw_src_image, raw_ref_image, ref_pose, src_pose,
                                                intrinsics, which_color_pred, FLAGS.num_msi_planes, psv_planes, inputs)
       else:
-          pred, net_input = self.infer_msi(raw_src_image, raw_ref_image, raw_hres_src_image, raw_hres_ref_image, ref_pose, src_pose,
-                                         intrinsics, which_color_pred, FLAGS.num_msi_planes, psv_planes, inputs)
-
+          pred, net_input = self.infer_msi(prev_msi, raw_src_image, raw_ref_image, raw_hres_src_image, raw_hres_ref_image, ref_pose, src_pose, orig_pose,
+                                            intrinsics, which_color_pred, FLAGS.num_msi_planes, psv_planes, inputs)
       rgba_layers = pred['rgba_layers']
+      msi_blend_weights = pred['msi_blend_weights']
+
       if 'hrestgt' in FLAGS.supervision:
           hrgba_layers = pred['hres_rgba_layers']
 
@@ -763,6 +795,8 @@ class MSI(object):
     for i in [0, 8, 16, 24, 31]:
       rgb = rgba_layers[:, :, :, i, :3]
       alpha = rgba_layers[:, :, :, i, 3:]
+      msi_weights = msi_blend_weights[:,:,:,i]
+      msi_weights = tf.expand_dims(msi_weights, axis=-1)
       if FLAGS.transform_inverse_reg:
           jrgb = rgba_layers_jitter[:, :, :, i, :3]
           jalpha = rgba_layers_jitter[:, :, :, i, 3:]
@@ -771,6 +805,7 @@ class MSI(object):
           tf.summary.image('jitter_rgba_layer_%d' % i, self.deprocess_image(jrgb * jalpha))
       tf.summary.image('rgb_layer_%d' % i, self.deprocess_image(rgb))
       tf.summary.image('alpha_layer_%d' % i, alpha)
+      tf.summary.image('msi_weights_%d' % i, msi_weights)
       tf.summary.image('rgba_layer_%d' % i, self.deprocess_image(rgb * alpha))
 
     #dry run operations for sanity check
@@ -848,17 +883,36 @@ class MSI(object):
             sv = tf.train.Supervisor(logdir=ckpt_dir, saver=None)
             config = tf.ConfigProto()
             config.gpu_options.allow_growth = True
+
+            prev_msi_np = np.zeros((1, 320, 640, FLAGS.num_msi_planes, 4))
+            orig_pose_np = np.zeros((1, 4, 4))
+            raw_tgt_image_np = np.zeros((1, 320, 640, 3))
+            first_tgt_pose_np = np.zeros((1,3))
             with sv.managed_session(config=config) as sess:
                 saver.restore(sess, ckpt_file)
                 if FLAGS.transform_inverse_reg:
                     [input, rgba, jitter_rgba] = sess.run([inputs, rgba_layers, rgba_layers_jitter])
                 else:
-                    [input, rgba] = sess.run([inputs, rgba_layers])
+                    [input, rgba, tl0, mbw] = sess.run([inputs, rgba_layers, total_loss, msi_blend_weights], feed_dict={'setup/prev_msi:0': prev_msi_np, 'setup/view:0': 0, 'setup/orig_pose:0': orig_pose_np, 'setup/first_tgt:0': raw_tgt_image_np, 'setup/first_tgt_pose:0': first_tgt_pose_np})
+                    orig_pose_0 = input["ref_pose"]
+                    raw_tgt_image_0 = input["tgt_image"]
+                    tgt_pose_0 = input["tgt_pose"]
+                    [input1, rgba1, tl1, mbw1] = sess.run([inputs, rgba_layers, total_loss, msi_blend_weights], feed_dict={'setup/prev_msi:0': rgba, 'setup/view:0': 1, 'setup/orig_pose:0': orig_pose_0, 'setup/first_tgt:0': raw_tgt_image_0, 'setup/first_tgt_pose:0': tgt_pose_0})
+                    [input2, rgba2, tl2, mbw2] = sess.run([inputs, rgba_layers, total_loss, msi_blend_weights], feed_dict={'setup/prev_msi:0': rgba1, 'setup/view:0': 2, 'setup/orig_pose:0': orig_pose_0, 'setup/first_tgt:0': raw_tgt_image_0, 'setup/first_tgt_pose:0': tgt_pose_0})
 
+            print("Total Loss 0: ", tl0)
+            print("Total Loss 1: ", tl1)
+            print("Total Loss 2: ", tl2)
             for i in range(FLAGS.num_psv_planes * 2):
                 write_image(dryrun_dir + "/formatInput_%s.png" % i, input['formattedInput'][:,:,i*3:(i+1)*3])
                 if FLAGS.transform_inverse_reg:
                     write_image(dryrun_dir + "/formatJitteredInput_%s.png" % i, input['jformattedInput'][:,:,i*3:(i+1)*3])
+
+            for i in range(FLAGS.num_psv_planes * 2):
+                write_image(dryrun_dir + "/formatInput_%s_1.png" % i, input1['formattedInput'][:,:,i*3:(i+1)*3])
+            
+            for i in range(FLAGS.num_psv_planes * 2):
+                write_image(dryrun_dir + "/formatInput_%s_2.png" % i, input2['formattedInput'][:,:,i*3:(i+1)*3])
 
             scene_id = input["scene_id"]
             image_id = input["image_id"]
@@ -868,19 +922,41 @@ class MSI(object):
             tgt_pose = input["tgt_pose"]
             print('Scene id:', scene_id)
             print('Image id:', image_id)
+            print('Scene id 1:', input1["scene_id"])
+            print('Scene id 2:', input2["scene_id"])
 
             tgt_img = input["tgt_image"][0]
             src_img = input["src_image"][0]
             ref_img = input["ref_image"][0]
+            src_img1 = input1["src_image"][0]
+            ref_img1 = input1["ref_image"][0]
+            src_img2 = input2["src_image"][0]
+            ref_img2 = input2["ref_image"][0]
+
             tgt = tgt_img * 255.
             src = src_img * 255.
             ref = ref_img * 255.
+            src1 = src_img1 * 255.
+            ref1 = ref_img1 * 255.
+            src2 = src_img2 * 255.
+            ref2 = ref_img2 * 255.
+
             tgt = tgt.astype(np.uint8)
             write_image(dryrun_dir + "/tgt.png",tgt)
             src = src.astype(np.uint8)
-            write_image(dryrun_dir + "/src.png",src)
+            write_image(dryrun_dir + "/src"+ str(0) + ".png",src)
             ref = ref.astype(np.uint8)
-            write_image(dryrun_dir + "/ref.png",ref)
+            write_image(dryrun_dir + "/ref"+ str(0) + ".png",ref)
+
+            src1 = src1.astype(np.uint8)
+            write_image(dryrun_dir + "/src1"+ str(1) + ".png",src1)
+            ref1 = ref1.astype(np.uint8)
+            write_image(dryrun_dir + "/ref1"+ str(1) + ".png",ref1)
+
+            src2 = src2.astype(np.uint8)
+            write_image(dryrun_dir + "/src2"+ str(2) + ".png",src2)
+            ref2 = ref2.astype(np.uint8)
+            write_image(dryrun_dir + "/ref2"+ str(2) + ".png",ref2)
 
             if 'hrestgt' in FLAGS.supervision:
                 hres_tgt_img = input["hres_tgt_image"][0]
@@ -900,8 +976,11 @@ class MSI(object):
             for i in range(FLAGS.num_msi_planes):
               alpha_img = rgba[0, :, :, i, 3] * 255.0
               rgb_img = (rgba[0, :, :, i, :3] + 1.) / 2. * 255
+              msi_weights = mbw[0,:,:,i] * 255.0
+              msi_weights = msi_weights.astype(int)
               write_image(dryrun_dir + '/msi_alpha_%.2d.png' % i, alpha_img)
               write_image(dryrun_dir + '/msi_rgb_%.2d.png' % i, rgb_img)
+              write_image(dryrun_dir + '/msi_weights_%.2d.png' % i, msi_weights)
               if FLAGS.transform_inverse_reg:
                   jalpha_img = jitter_rgba[0, :, :, i, 3] * 255.0
                   jrgb_img = (jitter_rgba[0, :, :, i, :3] + 1.) / 2. * 255
@@ -923,6 +1002,26 @@ class MSI(object):
                                                    msi_planes, intrinsics))[0]
                 output_images["output_pimage"] = self.deprocess_image(
                     self.msi_render_perspective_view(tf.constant(rgba), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                     msi_planes, intrinsics))[0]
+
+                output_images["output_image1"] = self.deprocess_image(
+                    self.msi_render_equirect_view(tf.constant(rgba1), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                  msi_planes, intrinsics))[0]
+                output_images["output_depth1"] = self.deprocess_image(
+                    self.msi_render_equirect_depth(tf.constant(rgba1), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                   msi_planes, intrinsics))[0]
+                output_images["output_pimage1"] = self.deprocess_image(
+                    self.msi_render_perspective_view(tf.constant(rgba1), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                     msi_planes, intrinsics))[0]
+
+                output_images["output_image2"] = self.deprocess_image(
+                    self.msi_render_equirect_view(tf.constant(rgba2), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                  msi_planes, intrinsics))[0]
+                output_images["output_depth2"] = self.deprocess_image(
+                    self.msi_render_equirect_depth(tf.constant(rgba2), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
+                                                   msi_planes, intrinsics))[0]
+                output_images["output_pimage2"] = self.deprocess_image(
+                    self.msi_render_perspective_view(tf.constant(rgba2), tf.expand_dims(tf.eye(4), axis=0), tgt_pos,
                                                      msi_planes, intrinsics))[0]
                 if FLAGS.transform_inverse_reg:
                     jitter_pose = tf.constant(input["jitter_pose"])
@@ -950,6 +1049,15 @@ class MSI(object):
                 write_image(dryrun_dir +"/tgtp_rendered.png", outputs["output_pimage"])
                 write_image(dryrun_dir +"/tgt_rendered.png", outputs["output_image"])
                 write_image(dryrun_dir +"/depth_rendered.png",outputs["output_depth"])
+
+                write_image(dryrun_dir +"/tgtp_rendered_1.png", outputs["output_pimage1"])
+                write_image(dryrun_dir +"/tgt_rendered_1.png", outputs["output_image1"])
+                write_image(dryrun_dir +"/depth_rendered_1.png",outputs["output_depth1"])
+
+                write_image(dryrun_dir +"/tgtp_rendered_2.png", outputs["output_pimage2"])
+                write_image(dryrun_dir +"/tgt_rendered_2.png", outputs["output_image2"])
+                write_image(dryrun_dir +"/depth_rendered_2.png",outputs["output_depth2"])
+
                 if FLAGS.transform_inverse_reg:
                     if 'tgt' in FLAGS.supervision:
                         write_image(dryrun_dir +"/tgt_rendered_from_jitter.png", outputs["jitter_output_image"])
@@ -966,13 +1074,17 @@ class MSI(object):
                 write_image(dryrun_dir + "/tgt_rendered.png", outputs["output_image"])
             exit()
 
-    return train_op
+    return train_op, rgba_layers, orig_pose, first_tgt, first_tgt_pose
 
-  def train(self, train_op, checkpoint_dir, continue_train, summary_freq,
+  def train(self, train_op, rgba_layers, orig_pose, first_tgt, first_tgt_pose, checkpoint_dir, continue_train, summary_freq,
             save_latest_freq, max_steps):
     """Runs the training procedure.
     Args:
       train_op: op for training the network
+      rgba_layers: layers of the inferred MSI
+      orig_pose: pose of camera for first input in sequence
+      first_tgt: target image for first input in sequence
+      first_tgt_pose: target pose for first input in sequence
       checkpoint_dir: where to save the checkpoints and summaries
       continue_train: whether to restore training from previous checkpoint
       summary_freq: summary frequency
@@ -1003,19 +1115,36 @@ class MSI(object):
 
       for step in range(1, max_steps):
         start_time = time.time()
-        fetches = {
+
+        prev_msi = np.zeros((1, 320, 640, FLAGS.num_msi_planes, 4))
+        orig_pose_np = np.zeros((1, 4, 4))
+        raw_tgt_image_np = np.zeros((1, 320, 640, 3))
+        first_tgt_pose_np = np.zeros((1,3))
+
+        for i in range(FLAGS.num_synth + 1):
+          fetches = {
             'train': train_op,
+            'msi': rgba_layers,
+            'orig_pose': orig_pose,
+            'first_tgt': first_tgt,
+            'first_tgt_pose': first_tgt_pose,
             'global_step': global_step,
-            'incr_global_step': incr_global_step,
-        }
-        if step % summary_freq == 0:
-          fetches['summary'] = sv.summary_op
-        results = sess.run(fetches)
-        gs = results['global_step']
-        if step % summary_freq == 0:
-          sv.summary_writer.add_summary(results['summary'], gs)
-          tf.logging.info(
-              '[Step %.8d] time: %4.4f/it' % (gs, time.time() - start_time))
+            'incr_global_step': incr_global_step
+          }
+          if step % 10 == 0:
+            fetches['summary'] = sv.summary_op
+          
+          results = sess.run(fetches, feed_dict={'setup/prev_msi:0': prev_msi, 'setup/view:0': i, 'setup/orig_pose:0': orig_pose_np, 'setup/first_tgt:0': raw_tgt_image_np, 'setup/first_tgt_pose:0': first_tgt_pose_np})
+          prev_msi = results['msi']
+          orig_pose_np = results['orig_pose']
+          raw_tgt_image_np = results['first_tgt']
+          first_tgt_pose_np = results['first_tgt_pose']
+
+          gs = results['global_step']
+          if step % summary_freq == 0:
+            sv.summary_writer.add_summary(results['summary'], gs)
+            tf.logging.info(
+                '[Step %.8d] time: %4.4f/it' % (gs, time.time() - start_time))
 
         if step % save_latest_freq == 0:
           tf.logging.info(' [*] Saving checkpoint to %s...' % checkpoint_dir)
@@ -1123,6 +1252,44 @@ class MSI(object):
     net_input = []
     for i in range(num_psv_source):
       curr_pose = tf.matmul(psv_src_poses[i:i+1, :, :], ref_pose_inv)
+      curr_image = psv_src_images[:, :, :, i * 3:(i + 1) * 3]
+      curr_psv = self.sweep_src(curr_image, -1 if (i % 2) == 0 else 1, planes, curr_pose, intrinsics)
+      net_input.append(curr_psv)
+    net_input = tf.concat(net_input, axis=3)
+    return net_input
+
+  def format_network_input_synth(self, ref_image, src_image, tgt_pose,
+                           ref_pose, src_pose, planes, intrinsics, rgba_layers=None):
+    """Format the network input into double psv.
+    Args:
+      ref_image: reference image [batch, height, width, 3]
+      src_image: source image [batch, height, width, 3
+      tgt_pose: target pose for first input in sequence
+      ref_pose: reference world-to-camera pose [batch, 4, 4]
+      src_pose: src world-to-camera [batch, 4, 4]
+      planes: list of scalar depth values for each plane
+      intrinsics: camera intrinsics [batch, 3, 3]
+      rgba_layers: MSI from previous frame
+    Returns:
+      net_input: [batch, height, width, num_source (2) * #planes * 3]
+    """
+    psv_src_images = tf.concat([ref_image, src_image], axis=-1)
+    psv_src_poses = tf.concat([tgt_pose, tgt_pose], axis=0)
+    num_psv_source, _, _= psv_src_poses.get_shape().as_list()
+
+    if FLAGS.input_type != 'ODS':
+        ref_pose_inv = tf.get_default_graph().get_tensor_by_name("interp_pose_inv:0")
+    else:
+        ref_pose_inv = tf.linalg.inv(ref_pose)
+    # Jitter pose for transform-inverse training
+    if FLAGS.jitter:
+        jitter_pose_inv = tf.get_default_graph().get_tensor_by_name("jitter_pose_inv:0")
+        ref_pose_inv = tf.matmul(ref_pose_inv, jitter_pose_inv)
+
+    net_input = []
+
+    for i in range(num_psv_source):
+      curr_pose = tf.matmul(ref_pose_inv, psv_src_poses[i:i+1, :, :])
       curr_image = psv_src_images[:, :, :, i * 3:(i + 1) * 3]
       curr_psv = self.sweep_src(curr_image, -1 if (i % 2) == 0 else 1, planes, curr_pose, intrinsics)
       net_input.append(curr_psv)

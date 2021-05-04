@@ -403,7 +403,7 @@ def create_loader_from_flags(cameras_glob='train/????????????????.txt',
           files = tf.data.Dataset.list_files(cameras_glob, True)
       else:
           files = tf.data.Dataset.list_files(cameras_glob, True)
-      lines = tf.data.TextLineDataset(files)
+      lines = tf.data.TextLineDataset(files).shuffle(100)
       sequences = lines.map(datasets.parse_replica_ods_camera_lines, num_parallel_calls=parallelism)
   else:
       if training:
