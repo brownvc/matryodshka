@@ -652,15 +652,15 @@ class MSI(object):
     with tf.name_scope('synthesis'):
         if FLAGS.input_type == 'ODS':
             if 'tgt' in FLAGS.supervision:
-                output_image = self.msi_render_equirect_view(rgba_layers, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
-                output_depth_image = self.msi_render_equirect_depth(rgba_layers, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
+                output_image = self.msi_render_equirect_view(rgba_layers, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
+                output_depth_image = self.msi_render_equirect_depth(rgba_layers, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
             if 'hrestgt' in FLAGS.supervision:
-                hres_output_image = self.msi_render_equirect_view(hrgba_layers, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
-                hres_output_depth_image = self.msi_render_equirect_depth(hrgba_layers, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
+                hres_output_image = self.msi_render_equirect_view(hrgba_layers, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
+                hres_output_depth_image = self.msi_render_equirect_depth(hrgba_layers, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
             if 'src' in FLAGS.supervision:
-                src_output_image = self.msi_render_ods_view(rgba_layers, -1, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
+                src_output_image = self.msi_render_ods_view(rgba_layers, -1, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
             if 'ref' in FLAGS.supervision:
-                ref_output_image = self.msi_render_ods_view(rgba_layers, 1, tf.expand_dims(tf.eye(4), axis=0), tgt_pose, msi_planes, intrinsics)
+                ref_output_image = self.msi_render_ods_view(rgba_layers, 1, tf.expand_dims(tf.eye(4), axis=0), first_tgt_pose, msi_planes, intrinsics)
 
             if FLAGS.transform_inverse_reg:
                 jitter_pose = tf.get_default_graph().get_tensor_by_name("jitter_pose:0")
