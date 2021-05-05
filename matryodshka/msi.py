@@ -1124,7 +1124,7 @@ class MSI(object):
     for i in range(num_psv_source):
       curr_pose = tf.matmul(psv_src_poses[i:i+1, :, :], ref_pose_inv)
       curr_image = psv_src_images[:, :, :, i * 3:(i + 1) * 3]
-      curr_psv = self.sweep_src(curr_image, -1 if (i % 2) == 0 else 1, planes, curr_pose, intrinsics)
+      curr_psv = self.sweep_src(curr_image, 1 if (i % 2) == 0 else -1, planes, curr_pose, intrinsics)
       net_input.append(curr_psv)
     net_input = tf.concat(net_input, axis=3)
     return net_input

@@ -125,7 +125,7 @@ def backproject_spherical(S, T, depth, intrinsics):
     cosT = tf.cos(T)
     x = depth * (tf.cos(S) * cosT)
     y = depth * tf.sin(T)
-    z = -depth * (tf.sin(S) * cosT) #Q: why negation here? does it make a difference? test it out
+    z = depth * (tf.sin(S) * cosT) #Q: why negation here? does it make a difference? test it out
     return x, y, z
 
 def backproject_planar(S, T, depth, intrinsics):
@@ -279,13 +279,13 @@ def intersect_sphere(pos, center, radius, num_planes, num_batch, width, height, 
     cosT = tf.cos(T)
     rx = tf.cos(S) * cosT
     ry = tf.sin(T)
-    rz = -tf.sin(S) * cosT
+    rz = tf.sin(S) * cosT
     n_layers, h , w = rx.get_shape().as_list()
 
     # ray center
-    cx = center[0]
+    cx = center[2]
     cy = center[1]
-    cz = -center[2]
+    cz = center[0]
 
     # Transform the ray/center with pose
     ray = tf.stack([rx, ry, rz], axis=0)
