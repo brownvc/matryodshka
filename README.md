@@ -65,7 +65,7 @@ consistency.
     * See `scripts/eval/*-video.sh` for a sample script.
 
 ## Pre-trained model 
-Download models pre-trained with and without transform inverse regularization by running `./download_model.sh`. 
+Download models pre-trained with and without transform inverse regularization by running `./download_model.sh`. Note these two models are trained with `--coord_net`.
 These can also be found [here at the Brown library](https://doi.org/10.26300/spba-rp45) for archival purposes.
 
 ## Replica dataset 
