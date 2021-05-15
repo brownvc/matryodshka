@@ -519,9 +519,9 @@ def msi_coord_train_net(inputs, num_outputs, ngf=64, vscope='net', reuse_weights
   if FLAGS.net_only and FLAGS.which_color_pred == 'blend_psv':
     msi_output = tf.transpose(msi_output, [0, 3, 1, 2])
     msi_output = msi_output[:, :64, :, :]
-    msi_output = tf.reshape(msi_output, [1, 8, 4, FLAGS.height, FLAGS.width])
+    msi_output = tf.reshape(msi_output, [1, 8, 8, FLAGS.height, FLAGS.width])
     msi_output = tf.transpose(msi_output, [0, 1, 3, 2, 4])
-    msi_output = tf.reshape(msi_output, [1, 8 * FLAGS.height, 4 * FLAGS.width], name='msi_output')
+    msi_output = tf.reshape(msi_output, [1, 8 * FLAGS.height, 8 * FLAGS.width], name='msi_output')
     return msi_output
   elif FLAGS.net_only and FLAGS.which_color_pred == 'alpha_only':
     msi_output = tf.transpose(msi_output, [0, 3, 1, 2])
