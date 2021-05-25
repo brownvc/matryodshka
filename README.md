@@ -93,7 +93,12 @@ See `scripts/export/model-name.sh` for a sample script to run `export.py`, and `
 
 ## Unity Application + ONNX to TensorRT Conversion
 We are still working on releasing the real-time Unity application and onnx2trt conversion scripts. Please bear with us!
- 
+
+## Changelog
+Commit history of recent fixes. 
+* Commit 5b816d0 works with current version of models and dataset. 
+* Commit 5ad20a2 works with correctly-rendered dataset without the bug we noted in Section [Replica Dataset](#Replica-dataset). This corrected version of models and dataset will be released soon.
+
 ## References
 <a id="1">[1]</a>
 Zhou, Tinghui, et al. "Stereo magnification: Learning view synthesis using multiplane images." arXiv preprint arXiv:1805.09817 (2018).
