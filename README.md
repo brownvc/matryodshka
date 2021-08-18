@@ -24,6 +24,12 @@ If you use these codes, please cite:
 Note that our codes are based on the [code](https://github.com/google/stereo-magnification/tree/aae16f7464d8a001b59c3bef6076ae8cb7bd043d) from the paper "Stereo Maginification: Learning View Synthesis using Multiplane Images" by Zhou et al. [[1]](#1), and on the [code](https://github.com/nywang16/Pixel2Mesh) from the paper "Pixel2mesh: Generating 3D Mesh Models from Single RGB Images." by Wang et al. [[3]](#3). Please also cite their work.
 
 
+## Changelog
+Commit history of recent fixes. 
+* Commit 5b816d0 works with current version of models and dataset. 
+* Commit 5ad20a2 works with correctly-rendered dataset without the bug that we note  below in Section [Replica Dataset](#Replica-dataset). This corrected version of models and dataset will be released soon.
+
+
 ## Setup
 * Create a conda environment from the matryodshka-gpu.yml file.
 * Run `./download_glob.sh` to download the files needed for training and testing.
@@ -94,10 +100,6 @@ See `scripts/export/model-name.sh` for a sample script to run `export.py`, and `
 ## Unity Application + ONNX to TensorRT Conversion
 We are still working on releasing the real-time Unity application and onnx2trt conversion scripts. Please bear with us!
 
-## Changelog
-Commit history of recent fixes. 
-* Commit 5b816d0 works with current version of models and dataset. 
-* Commit 5ad20a2 works with correctly-rendered dataset without the bug we noted in Section [Replica Dataset](#Replica-dataset). This corrected version of models and dataset will be released soon.
 
 ## References
 <a id="1">[1]</a>
