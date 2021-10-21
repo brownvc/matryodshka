@@ -26,7 +26,8 @@ Note that our codes are based on the [code](https://github.com/google/stereo-mag
 
 ## Changelog
 Commit history of recent fixes. 
-* Commit 5b816d0 works with current version of models and dataset. 
+* Added 360 renderer (RGB+depth) for Replica dataset: https://github.com/brownvc/matryodshka-replica360
+* Commit 5b816d0 works with current released versions of pre-trained models and dataset. 
 * Commit 5ad20a2 works with correctly-rendered dataset without the bug that we note  below in Section [Replica Dataset](#Replica-dataset). This corrected version of models and dataset will be released soon.
 
 
@@ -86,10 +87,10 @@ Each line of the txt fileach line of the txt file is formatted as below:
 
 camera_position_x camera_position_y camera_position_z ods_baseline target1_offset_x target1_offset_y target1_offset_z target2_offset_x target2_offset_y target2_offset_z target3_offset_x target3_offset_y target3_offset_z
 
-We also have a [fork of the Replica dataset codebase](http://coming.soon/) which can regenerate our data from scratch.
+We also have a [fork of the Replica dataset codebase](https://github.com/brownvc/matryodshka-replica360) which can regenerate our data from scratch.
 This contains customized rendering scripts that allow output of ODS, equirectangular, and cubemap projection spherical imagery, along with corresponding depth maps.
 
-Note that the 360 dataset we release for download was rendered with an incorrect 90-degree camera rotation around the up vector and a horizontal flip. Regenerating the dataset from our released code fork with the customized rendering scripts will not include this coordinate change. The output model performance should be approximately the same.
+Note that the 360 dataset we release for download was rendered with an incorrect 90-degree camera rotation around the up vector and a horizontal flip. This data + pretrained model works with commit 5b816d0. Regenerating the dataset from our released `matryodshka-replica360` code fork with our customized rendering scripts will not include this incorrect coordinate change, and training a model from the regenerated data using commit 5ad20a2 or later will work correctly. In comparing the two with and without the coordinate flip, the output model performance should be approximately the same.
 
 ## Exporting the model to ONNX
 We export our model to ONNX by firstly converting the checkpoint into a pb file, which then gets converted to an onnx file with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) module. 
