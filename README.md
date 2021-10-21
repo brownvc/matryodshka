@@ -26,10 +26,9 @@ Note that our codes are based on the [code](https://github.com/google/stereo-mag
 
 ## Changelog
 Commit history of recent fixes. 
-* Added 360 renderer (RGB+depth) for Replica dataset: https://github.com/brownvc/matryodshka-replica360
-* Commit 5b816d0 works with current released versions of pre-trained models and dataset. 
-* Commit 5ad20a2 works with correctly-rendered dataset without the bug that we note  below in Section [Replica Dataset](#Replica-dataset). This requires regenerating the dataset and retraining the models.
-
+* [2021-10-21] Added 360 renderer (RGB+depth) for Replica dataset: https://github.com/brownvc/matryodshka-replica360
+* Commit 5ad20a2 works with correctly-rendered dataset without the coordinate-flip bug that we note below in Section [Replica Dataset](#Replica-dataset). This requires regenerating the dataset and retraining the models.
+* Commit 5b816d0 works with currently-released versions of pre-trained models and dataset. This data/model has an incorrect 90-degree camera rotation around the up vector and a horizontal flip.
 
 ## Setup
 * Create a conda environment from the matryodshka-gpu.yml file.
