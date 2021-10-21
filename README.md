@@ -28,7 +28,7 @@ Note that our codes are based on the [code](https://github.com/google/stereo-mag
 Commit history of recent fixes. 
 * Added 360 renderer (RGB+depth) for Replica dataset: https://github.com/brownvc/matryodshka-replica360
 * Commit 5b816d0 works with current released versions of pre-trained models and dataset. 
-* Commit 5ad20a2 works with correctly-rendered dataset without the bug that we note  below in Section [Replica Dataset](#Replica-dataset). This corrected version of models and dataset will be released soon.
+* Commit 5ad20a2 works with correctly-rendered dataset without the bug that we note  below in Section [Replica Dataset](#Replica-dataset). This requires regenerating the dataset and retraining the models.
 
 
 ## Setup
